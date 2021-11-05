@@ -1,0 +1,204 @@
+import Map from "map"
+import * from "range"
+import List from "list"
+import Array from "array"
+import String from "string"
+import Char from "char"
+import Option from "option"
+
+enum JSValue {
+    JSNumber(String),
+    JSString(String),
+    JSArray(List<JSValue>),
+    JSObject(Map.Map<String, JSValue>),
+    JSBoolean(Bool),
+    JSNull
+}
+
+enum Token {
+    OpenBracket,
+    CloseBracket,
+    OpenBrace,
+    CloseBrace,
+    Comma,
+    Colon,
+    Quote,
+    Neg,
+    Num,
+    Other,
+    True,
+    False,
+    Decimal,
+    Null,
+    Space
+}
+
+let tokenizeFirstChar = (char) => {
+    match(char){
+        '[' => OpenBracket,
+        '{' => OpenBrace,
+        ']' => CloseBracket,
+        '}' => CloseBrace,
+        '"' => Quote,
+        'n' => Null,
+        't' => True,
+        'f' => False,
+        '-' => Neg,
+        '.' => Decimal,
+        ' ' => Space,
+        ',' => Comma,
+        ':' => Colon,
+        num when inRange(Char.code(num), Inclusive(48,57)) => Num,
+        _ => Other
+    }
+}
+
+let headTailTuple = (charlist) => {
+    match(charlist){
+        [hd, ...tl] => (hd, tl),
+        [hd] => (hd, []),
+        _ => fail "Illegal Input"
+    }
+}
+
+let appendItem = (list, item) => List.append(list, [item])
+
+record ParseItemState {
+    json: JSValue,
+    rest: List<Char>
+}
+
+let rec tokenize = (charlist) => {
+    let rec tokenizeNumber = (state, charlist) => {
+        let (hd, tl) = headTailTuple(charlist)
+        match(tokenizeFirstChar(hd)){
+            Neg => tokenizeNumber(['-'], tl),
+            Decimal when !List.contains('.', state) => tokenizeNumber(appendItem(state, hd), tl),
+            Num => tokenizeNumber(appendItem(state, hd), tl),
+            Decimal => fail "Illegal Number",
+            Neg => fail "Illegal Number",
+            _ => {
+                json: JSNumber(String.implode(Array.fromList(state))),
+                rest: charlist
+            }
+        }
+    }
+    
+    let rec tokenizeString = (state, charlist) => {
+        let (hd, tl) = headTailTuple(charlist)
+        match(tokenizeFirstChar(hd)){
+            Quote => {
+                json: JSString(String.implode(Array.fromList(state))),
+                rest: tl
+            },
+            _ => tokenizeString(appendItem(state, hd), tl)
+        }
+    }
+
+    let rec tokenizeArray = (state, charlist) => {
+        let (hd, tl) = headTailTuple(charlist)
+        match(tokenizeFirstChar(hd)){
+            OpenBracket => {
+                let result = tokenize(tl)
+                tokenizeArray(appendItem(state, result.json), result.rest)
+            },
+            Comma => {
+                let result = tokenize(tl)
+                tokenizeArray(appendItem(state, result.json), result.rest)
+            },
+            CloseBracket => {
+                json: JSArray(state),
+                rest: tl
+            },
+            _ => fail "Illegal Array"
+        }
+    }
+
+    let rec tokenizeKey = (state, charlist) => {
+        let (hd, tl) = headTailTuple(charlist)
+        match(tokenizeFirstChar(hd)){
+            Space => tokenizeKey(state, tl),
+            Quote => {
+                match(tokenizeString([], tl)){
+                    {json: JSString(key), rest: rest} => tokenizeKey(Some(key), rest),
+                    _ => fail "Illegal Object"
+                }
+            },
+            Colon => {
+                match(state){
+                    Some(key) => (key, tl),
+                    None => fail "Illegal Object"
+                }
+            },
+            _ => fail "Illegal Object"
+        }
+    }
+    
+    let rec tokenizeObject = (state, charlist) => {
+        let (hd, tl) = headTailTuple(charlist)
+        match(tokenizeFirstChar(hd)){
+            OpenBrace => {
+                let (key, rest) = tokenizeKey(None, tl)
+                let valueResult = tokenize(rest)
+                Map.set(key, valueResult.json, state)
+                tokenizeObject(state, valueResult.rest)
+            },
+            Comma => {
+                let (key, rest) = tokenizeKey(None, tl)
+                let valueResult = tokenize(rest)
+                Map.set(key, valueResult.json, state)
+                tokenizeObject(state, valueResult.rest)
+            },
+            CloseBrace => {
+                json: JSObject(state),
+                rest: tl
+            },
+            _ => fail "Illegal Object"
+        }
+    }
+
+    let tokenizeNull = (charlist) => {
+        match(charlist){
+            ['n','u','l','l', ...rest] => {
+                json: JSNull,
+                rest: rest
+            },
+            _ => fail "Illegal Null"
+        }
+    }
+
+    let tokenizeBoolean = (charlist) => {
+        match(charlist){
+            ['f','a','l','s','e', ...rest] => {
+                json: JSBoolean(false),
+                rest: rest
+            },
+            ['t','r','u','e', ...rest] => {
+                json: JSBoolean(true),
+                rest: rest
+            },
+            _ => fail "Illegal Boolean"
+        }
+    }
+    
+    let (hd, tl) = headTailTuple(charlist)
+    match(tokenizeFirstChar(hd)){
+        Quote => tokenizeString([], tl),
+        Num => tokenizeNumber([hd], tl),
+        Neg => tokenizeNumber([hd], tl),
+        OpenBrace => tokenizeObject(Map.make(), charlist),
+        OpenBracket => tokenizeArray([], charlist),
+        Null => tokenizeNull(charlist),
+        True => tokenizeBoolean(charlist),
+        False => tokenizeBoolean(charlist),
+        Space => tokenize(tl),
+        _ => {
+            fail "Illegal Token"
+        }
+    }
+}
+
+let parse = str => {
+    let tokenized = tokenize(Array.toList(String.explode(str)))
+    tokenized.json
+}
