@@ -5,9 +5,10 @@ import Array from "array"
 import String from "string"
 import Char from "char"
 import Option from "option"
+import Number from "number"
 
 enum JSValue {
-    JSNumber(String),
+    JSNumber(Number),
     JSString(String),
     JSArray(List<JSValue>),
     JSObject(Map.Map<String, JSValue>),
@@ -68,17 +69,95 @@ record ParseItemState {
     rest: List<Char>
 }
 
+enum Sign {
+    Positive,
+    Negative
+}
+
+record ParsedNumber {
+    sign: Sign,
+    integral: Array<Char>,
+    fractal: Array<Char>
+}
+
+let parseSign = (charlist) => {
+    let (hd, tl) = headTailTuple(charlist)
+    match(tokenizeFirstChar(hd)){
+        Neg => (Negative, tl),
+        Num => (Positive, charlist),
+        _ => fail "Illegal Number"
+    }
+}
+
+let rec parseNumericPart = (state, charlist) => {
+    let (hd, tl) = headTailTuple(charlist)
+    match(tokenizeFirstChar(hd)){
+        Num => parseNumericPart(appendItem(state, hd), tl),
+        _ => (state, charlist)
+    }
+}
+
+let pow = (num, power) => {
+    if(power == 0){
+        1
+    }else{
+        let mut result = num
+        for(let mut i = 1; i < power; i+=1){
+            result *= num
+        }
+        result
+    }
+}
+
+let toNum = (parsedNum) => {
+    let mut number = 0
+    let intLen = Array.length(parsedNum.integral)
+    let mut radix = intLen - 1
+    for(let mut i = 0; i < intLen; i += 1){
+        let digit = Char.code(parsedNum.integral[i]) - 48
+        number += digit * pow(10, radix)
+        radix -= 1
+    }
+    let fracLen = Array.length(parsedNum.fractal)
+    radix = 1
+    for(let mut i = 0; i < fracLen; i += 1){
+        let digit = Char.code(parsedNum.fractal[i]) - 48
+        number += digit / pow(10, radix)
+        radix += 1
+    }
+    match(parsedNum.sign){
+        Positive => number,
+        Negative => Number.neg(number)
+    }
+    number
+}
+
 let rec tokenize = (charlist) => {
     let rec tokenizeNumber = (state, charlist) => {
-        let (hd, tl) = headTailTuple(charlist)
+        let (sign, number) = parseSign(charlist)
+        let (integral, rest) = parseNumericPart([], number)
+        let (hd, tl) = headTailTuple(rest)
         match(tokenizeFirstChar(hd)){
-            Neg => tokenizeNumber(['-'], tl),
-            Decimal when !List.contains('.', state) => tokenizeNumber(appendItem(state, hd), tl),
-            Num => tokenizeNumber(appendItem(state, hd), tl),
-            Decimal => fail "Illegal Number",
-            Neg => fail "Illegal Number",
+            Decimal => {
+                let (fractal, rest) = parseNumericPart([], tl)
+                let result = toNum({
+                    sign: sign,
+                    integral: Array.fromList(integral),
+                    fractal: Array.fromList(fractal)
+                })
+                {
+                    json: JSNumber(result),
+                    rest: rest
+                }
+            },
             _ => {
-                json: JSNumber(String.implode(Array.fromList(state))),
+                json: JSNumber(
+                    toNum({
+                        sign: sign,
+                        integral: Array.fromList(integral),
+                        fractal: [>]
+                    })
+                ),
                 rest: charlist
             }
         }
@@ -184,8 +263,8 @@ let rec tokenize = (charlist) => {
     let (hd, tl) = headTailTuple(charlist)
     match(tokenizeFirstChar(hd)){
         Quote => tokenizeString([], tl),
-        Num => tokenizeNumber([hd], tl),
-        Neg => tokenizeNumber([hd], tl),
+        Num => tokenizeNumber([], charlist),
+        Neg => tokenizeNumber([], charlist),
         OpenBrace => tokenizeObject(Map.make(), charlist),
         OpenBracket => tokenizeArray([], charlist),
         Null => tokenizeNull(charlist),
@@ -202,3 +281,13 @@ let parse = str => {
     let tokenized = tokenize(Array.toList(String.explode(str)))
     tokenized.json
 }
+
+
+print(parse("{\"test\": 23.4232}"))
+print(parse("[\"test\", 23.4232, 44.1, {\"fdsfaf\": \"jhkhjk\"} ]"))
+
+print(toNum({
+    sign: Positive,
+    integral: [>'4','5'],
+    fractal: [>'4','6'],
+}))
