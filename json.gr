@@ -230,19 +230,19 @@ let rec tokenize = charlist => {
 
   let tokenizeNull = charlist => {
     match (charlist) {
-      ['n', ...['u', ...['l', ...['l', ...rest]]]] => { json: JSNull, rest },
+      ['n', 'u', 'l', 'l', ...rest] => { json: JSNull, rest },
       _ => fail "Illegal Null",
     }
   }
 
   let tokenizeBoolean = charlist => {
     match (charlist) {
-      ['f', ...['a', ...['l', ...['s', ...['e', ...rest]]]]] =>
+      ['f', 'a', 'l', 's', 'e', ...rest] =>
         {
           json: JSBoolean(false),
           rest,
         },
-      ['t', ...['r', ...['u', ...['e', ...rest]]]] =>
+      ['t', 'r', 'u', 'e', ...rest] =>
         {
           json: JSBoolean(true),
           rest,
