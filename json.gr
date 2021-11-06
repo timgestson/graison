@@ -8,312 +8,298 @@ import Option from "option"
 import Number from "number"
 
 export enum JSValue {
-    JSNumber(Number),
-    JSString(String),
-    JSArray(List<JSValue>),
-    JSObject(List<(String, JSValue)>),
-    JSBoolean(Bool),
-    JSNull
+  JSNumber(Number),
+  JSString(String),
+  JSArray(List<JSValue>),
+  JSObject(List<(String, JSValue)>),
+  JSBoolean(Bool),
+  JSNull,
 }
 
 enum Token {
-    OpenBracket,
-    CloseBracket,
-    OpenBrace,
-    CloseBrace,
-    Comma,
-    Colon,
-    Quote,
-    Neg,
-    Num,
-    Other,
-    True,
-    False,
-    Decimal,
-    Null,
-    Space
+  OpenBracket,
+  CloseBracket,
+  OpenBrace,
+  CloseBrace,
+  Comma,
+  Colon,
+  Quote,
+  Neg,
+  Num,
+  Other,
+  True,
+  False,
+  Decimal,
+  Null,
+  Space,
 }
 
-let tokenizeFirstChar = (char) => {
-    match(char){
-        '[' => OpenBracket,
-        '{' => OpenBrace,
-        ']' => CloseBracket,
-        '}' => CloseBrace,
-        '"' => Quote,
-        'n' => Null,
-        't' => True,
-        'f' => False,
-        '-' => Neg,
-        '.' => Decimal,
-        ',' => Comma,
-        ':' => Colon,
-        ' ' => Space,
-        '\t' => Space,
-        '\n' => Space,
-        num when inRange(Char.code(num), Inclusive(48,57)) => Num,
-        _ => Other
-    }
+let tokenizeFirstChar = char => {
+  match (char) {
+    '[' => OpenBracket,
+    '{' => OpenBrace,
+    ']' => CloseBracket,
+    '}' => CloseBrace,
+    '"' => Quote,
+    'n' => Null,
+    't' => True,
+    'f' => False,
+    '-' => Neg,
+    '.' => Decimal,
+    ',' => Comma,
+    ':' => Colon,
+    ' ' => Space,
+    '\t' => Space,
+    '\n' => Space,
+    num when inRange(Char.code(num), Inclusive(48, 57)) => Num,
+    _ => Other,
+  }
 }
 
-let headTailTuple = (charlist) => {
-    match(charlist){
-        [hd, ...tl] => (hd, tl),
-        [hd] => (hd, []),
-        _ => fail "Illegal Input"
-    }
+let headTailTuple = charlist => {
+  match (charlist) {
+    [hd, ...tl] => (hd, tl),
+    [hd] => (hd, []),
+    _ => fail "Illegal Input",
+  }
 }
 
 let appendItem = (list, item) => List.append(list, [item])
 
-record ParseItemState {
-    json: JSValue,
-    rest: List<Char>
-}
+record ParseItemState { json: JSValue, rest: List<Char> }
 
-enum Sign {
-    Positive,
-    Negative
-}
+enum Sign { Positive, Negative }
 
-record ParsedNumber {
-    sign: Sign,
-    integral: Array<Char>,
-    fractal: Array<Char>
-}
+record ParsedNumber { sign: Sign, integral: Array<Char>, fractal: Array<Char> }
 
-let parseSign = (charlist) => {
-    let (hd, tl) = headTailTuple(charlist)
-    match(tokenizeFirstChar(hd)){
-        Neg => (Negative, tl),
-        Num => (Positive, charlist),
-        _ => fail "Illegal Number"
-    }
+let parseSign = charlist => {
+  let (hd, tl) = headTailTuple(charlist)
+  match (tokenizeFirstChar(hd)) {
+    Neg => (Negative, tl),
+    Num => (Positive, charlist),
+    _ => fail "Illegal Number",
+  }
 }
 
 let rec parseNumericPart = (state, charlist) => {
-    let (hd, tl) = headTailTuple(charlist)
-    match(tokenizeFirstChar(hd)){
-        Num => parseNumericPart(appendItem(state, hd), tl),
-        _ => (state, charlist)
-    }
+  let (hd, tl) = headTailTuple(charlist)
+  match (tokenizeFirstChar(hd)) {
+    Num => parseNumericPart(appendItem(state, hd), tl),
+    _ => (state, charlist),
+  }
 }
 
 let pow = (num, power) => {
-    if(power == 0){
-        1
-    }else{
-        let mut result = num
-        for(let mut i = 1; i < power; i+=1){
-            result *= num
-        }
-        result
+  if (power == 0) {
+    1
+  } else {
+    let mut result = num
+    for (let mut i = 1; i < power; i += 1) {
+      result *= num
     }
+    result
+  }
 }
 
-let toNum = (parsedNum) => {
-    let mut number = 0
-    let intLen = Array.length(parsedNum.integral)
-    let mut radix = intLen - 1
-    for(let mut i = 0; i < intLen; i += 1){
-        let digit = Char.code(parsedNum.integral[i]) - 48
-        number += digit * pow(10, radix)
-        radix -= 1
-    }
-    let fracLen = Array.length(parsedNum.fractal)
-    radix = 1
-    for(let mut i = 0; i < fracLen; i += 1){
-        let digit = Char.code(parsedNum.fractal[i]) - 48
-        number += digit / pow(10, radix)
-        radix += 1
-    }
-    match(parsedNum.sign){
-        Positive => number,
-        Negative => Number.neg(number)
-    }
-    number
+let toNum = parsedNum => {
+  let mut number = 0
+  let intLen = Array.length(parsedNum.integral)
+  let mut radix = intLen - 1
+  for (let mut i = 0; i < intLen; i += 1) {
+    let digit = Char.code(parsedNum.integral[i]) - 48
+    number += digit * pow(10, radix)
+    radix -= 1
+  }
+  let fracLen = Array.length(parsedNum.fractal)
+  radix = 1
+  for (let mut i = 0; i < fracLen; i += 1) {
+    let digit = Char.code(parsedNum.fractal[i]) - 48
+    number += digit / pow(10, radix)
+    radix += 1
+  }
+  match (parsedNum.sign) {
+    Positive => number,
+    Negative => Number.neg(number),
+  }
+  number
 }
 
-let rec tokenize = (charlist) => {
-    let rec tokenizeNumber = (state, charlist) => {
-        let (sign, number) = parseSign(charlist)
-        let (integral, rest) = parseNumericPart([], number)
-        let (hd, tl) = headTailTuple(rest)
-        match(tokenizeFirstChar(hd)){
-            Decimal => {
-                let (fractal, rest) = parseNumericPart([], tl)
-                let result = toNum({
-                    sign: sign,
-                    integral: Array.fromList(integral),
-                    fractal: Array.fromList(fractal)
-                })
-                {
-                    json: JSNumber(result),
-                    rest: rest
-                }
-            },
-            _ => {
-                json: JSNumber(
-                    toNum({
-                        sign: sign,
-                        integral: Array.fromList(integral),
-                        fractal: [>]
-                    })
-                ),
-                rest: rest
-            }
-        }
+let rec tokenize = charlist => {
+  let rec tokenizeNumber = (state, charlist) => {
+    let (sign, number) = parseSign(charlist)
+    let (integral, rest) = parseNumericPart([], number)
+    let (hd, tl) = headTailTuple(rest)
+    match (tokenizeFirstChar(hd)) {
+      Decimal => {
+        let (fractal, rest) = parseNumericPart([], tl)
+        let result = toNum(
+          {
+            sign,
+            integral: Array.fromList(integral),
+            fractal: Array.fromList(fractal),
+          },
+        )
+        { json: JSNumber(result), rest }
+      },
+      _ =>
+        {
+          json: JSNumber(
+            toNum({ sign, integral: Array.fromList(integral), fractal: [>] }),
+          ),
+          rest,
+        },
     }
-    
-    let rec tokenizeString = (state, charlist) => {
-        let (hd, tl) = headTailTuple(charlist)
-        match(tokenizeFirstChar(hd)){
-            Quote => {
-                json: JSString(String.implode(Array.fromList(state))),
-                rest: tl
-            },
-            _ => tokenizeString(appendItem(state, hd), tl)
-        }
-    }
+  }
 
-    let rec tokenizeArray = (state, charlist) => {
-        let (hd, tl) = headTailTuple(charlist)
-        match(tokenizeFirstChar(hd)){
-            Space => tokenizeArray(state, tl),
-            OpenBracket => {
-                let result = tokenize(tl)
-                tokenizeArray(appendItem(state, result.json), result.rest)
-            },
-            Comma => {
-                let result = tokenize(tl)
-                tokenizeArray(appendItem(state, result.json), result.rest)
-            },
-            CloseBracket => {
-                json: JSArray(state),
-                rest: tl
-            },
-            _ => {
-                print(tokenizeFirstChar(hd))
-                fail "Illegal Array"
-            }
-        }
-    }
-
-    let rec tokenizeKey = (state, charlist) => {
-        let (hd, tl) = headTailTuple(charlist)
-        match(tokenizeFirstChar(hd)){
-            Space => tokenizeKey(state, tl),
-            Quote => {
-                match(tokenizeString([], tl)){
-                    {json: JSString(key), rest: rest} => tokenizeKey(Some(key), rest),
-                    _ => fail "Illegal Object"
-                }
-            },
-            Colon => {
-                match(state){
-                    Some(key) => (key, tl),
-                    None => fail "Illegal Object"
-                }
-            },
-            _ => fail "Illegal Object"
-        }
-    }
-    
-    let rec tokenizeObject = (state, charlist) => {
-        let (hd, tl) = headTailTuple(charlist)
-        match(tokenizeFirstChar(hd)){
-            Space => tokenizeObject(state, tl),
-            OpenBrace => {
-                let (key, rest) = tokenizeKey(None, tl)
-                let valueResult = tokenize(rest)
-                tokenizeObject(appendItem(state, (key, valueResult.json)), valueResult.rest)
-            },
-            Comma => {
-                let (key, rest) = tokenizeKey(None, tl)
-                let valueResult = tokenize(rest)
-                tokenizeObject(appendItem(state, (key, valueResult.json)), valueResult.rest)
-            },
-            CloseBrace => {
-                json: JSObject(state),
-                rest: tl
-            },
-            _ => fail "Illegal Object"
-        }
-    }
-
-    let tokenizeNull = (charlist) => {
-        match(charlist){
-            ['n','u','l','l', ...rest] => {
-                json: JSNull,
-                rest: rest
-            },
-            _ => fail "Illegal Null"
-        }
-    }
-
-    let tokenizeBoolean = (charlist) => {
-        match(charlist){
-            ['f','a','l','s','e', ...rest] => {
-                json: JSBoolean(false),
-                rest: rest
-            },
-            ['t','r','u','e', ...rest] => {
-                json: JSBoolean(true),
-                rest: rest
-            },
-            _ => fail "Illegal Boolean"
-        }
-    }
-    
+  let rec tokenizeString = (state, charlist) => {
     let (hd, tl) = headTailTuple(charlist)
-    match(tokenizeFirstChar(hd)){
-        Quote => tokenizeString([], tl),
-        Num => tokenizeNumber([], charlist),
-        Neg => tokenizeNumber([], charlist),
-        OpenBrace => tokenizeObject([], charlist),
-        OpenBracket => tokenizeArray([], charlist),
-        Null => tokenizeNull(charlist),
-        True => tokenizeBoolean(charlist),
-        False => tokenizeBoolean(charlist),
-        Space => tokenize(tl),
-        _ => {
-            fail "Illegal Token"
-        }
+    match (tokenizeFirstChar(hd)) {
+      Quote =>
+        {
+          json: JSString(String.implode(Array.fromList(state))),
+          rest: tl,
+        },
+      _ => tokenizeString(appendItem(state, hd), tl),
     }
+  }
+
+  let rec tokenizeArray = (state, charlist) => {
+    let (hd, tl) = headTailTuple(charlist)
+    match (tokenizeFirstChar(hd)) {
+      Space => tokenizeArray(state, tl),
+      OpenBracket => {
+        let result = tokenize(tl)
+        tokenizeArray(appendItem(state, result.json), result.rest)
+      },
+      Comma => {
+        let result = tokenize(tl)
+        tokenizeArray(appendItem(state, result.json), result.rest)
+      },
+      CloseBracket => { json: JSArray(state), rest: tl },
+      _ => {
+        print(tokenizeFirstChar(hd))
+        fail "Illegal Array"
+      },
+    }
+  }
+
+  let rec tokenizeKey = (state, charlist) => {
+    let (hd, tl) = headTailTuple(charlist)
+    match (tokenizeFirstChar(hd)) {
+      Space => tokenizeKey(state, tl),
+      Quote => {
+        match (tokenizeString([], tl)) {
+          { json: JSString(key), rest } => tokenizeKey(Some(key), rest),
+          _ => fail "Illegal Object",
+        }
+      },
+      Colon => {
+        match (state) {
+          Some(key) => (key, tl),
+          None => fail "Illegal Object",
+        }
+      },
+      _ => fail "Illegal Object",
+    }
+  }
+
+  let rec tokenizeObject = (state, charlist) => {
+    let (hd, tl) = headTailTuple(charlist)
+    match (tokenizeFirstChar(hd)) {
+      Space => tokenizeObject(state, tl),
+      OpenBrace => {
+        let (key, rest) = tokenizeKey(None, tl)
+        let valueResult = tokenize(rest)
+        tokenizeObject(
+          appendItem(state, (key, valueResult.json)),
+          valueResult.rest,
+        )
+      },
+      Comma => {
+        let (key, rest) = tokenizeKey(None, tl)
+        let valueResult = tokenize(rest)
+        tokenizeObject(
+          appendItem(state, (key, valueResult.json)),
+          valueResult.rest,
+        )
+      },
+      CloseBrace => { json: JSObject(state), rest: tl },
+      _ => fail "Illegal Object",
+    }
+  }
+
+  let tokenizeNull = charlist => {
+    match (charlist) {
+      ['n', ...['u', ...['l', ...['l', ...rest]]]] => { json: JSNull, rest },
+      _ => fail "Illegal Null",
+    }
+  }
+
+  let tokenizeBoolean = charlist => {
+    match (charlist) {
+      ['f', ...['a', ...['l', ...['s', ...['e', ...rest]]]]] =>
+        {
+          json: JSBoolean(false),
+          rest,
+        },
+      ['t', ...['r', ...['u', ...['e', ...rest]]]] =>
+        {
+          json: JSBoolean(true),
+          rest,
+        },
+      _ => fail "Illegal Boolean",
+    }
+  }
+
+  let (hd, tl) = headTailTuple(charlist)
+  match (tokenizeFirstChar(hd)) {
+    Quote => tokenizeString([], tl),
+    Num => tokenizeNumber([], charlist),
+    Neg => tokenizeNumber([], charlist),
+    OpenBrace => tokenizeObject([], charlist),
+    OpenBracket => tokenizeArray([], charlist),
+    Null => tokenizeNull(charlist),
+    True => tokenizeBoolean(charlist),
+    False => tokenizeBoolean(charlist),
+    Space => tokenize(tl),
+    _ => {
+      fail "Illegal Token"
+    },
+  }
 }
 
 export let decode = str => {
-    let tokenized = tokenize(Array.toList(String.explode(str)))
-    tokenized.json
+  let tokenized = tokenize(Array.toList(String.explode(str)))
+  tokenized.json
 }
 
-export let rec encode = (js) => {
-    let encodeKvTuple = (kv) => {
-        match(kv){
-            (key, val) => List.join("", ["\"", key, "\":", encode(val)])
-        }
+export let rec encode = js => {
+  let encodeKvTuple = kv => {
+    match (kv) {
+      (key, val) => List.join("", ["\"", key, "\":", encode(val)]),
     }
-    let encodeObject = (obj) => {
-        let kvs = List.map(encodeKvTuple, obj)
-        List.join("", ["{", List.join(",", kvs),"}"])
-    }
+  }
+  let encodeObject = obj => {
+    let kvs = List.map(encodeKvTuple, obj)
+    List.join("", ["{", List.join(",", kvs), "}"])
+  }
 
-    let encodeArray = (arr) => {
-        let items = List.map(encode, arr)
-        List.join("", ["[", List.join(", ", items),"]"])
-    }
+  let encodeArray = arr => {
+    let items = List.map(encode, arr)
+    List.join("", ["[", List.join(", ", items), "]"])
+  }
 
-    let encodeNumber = (num) => {
-        fail "not yet supported" 
-    }
+  let encodeNumber = num => {
+    fail "not yet supported"
+  }
 
-    match(js){
-        JSObject(obj) => encodeObject(obj),
-        JSArray(arr) => encodeArray(arr),
-        JSString(str) => List.join("", ["\"", str, "\""]),
-        JSBoolean(true) => "true",
-        JSBoolean(false) => "false",
-        JSNull => "null",
-        JSNumber(num) => encodeNumber(num)
-    }
+  match (js) {
+    JSObject(obj) => encodeObject(obj),
+    JSArray(arr) => encodeArray(arr),
+    JSString(str) => List.join("", ["\"", str, "\""]),
+    JSBoolean(true) => "true",
+    JSBoolean(false) => "false",
+    JSNull => "null",
+    JSNumber(num) => encodeNumber(num),
+  }
 }
