@@ -287,30 +287,33 @@ export let decode = str => {
     tokenized.json
 }
 
-let rec encode = (js) => {
+export let rec encode = (js) => {
     let encodeKvTuple = (kv) => {
         match(kv){
-            (key, val) => List.join("", [" \"", key, "\": ", encode(val)])
+            (key, val) => List.join("", ["\"", key, "\":", encode(val)])
         }
     }
     let encodeObject = (obj) => {
         let kvs = List.map(encodeKvTuple, obj)
-        List.join("", ["{ ", List.join(",", kvs),"} "])
+        List.join("", ["{", List.join(",", kvs),"}"])
     }
 
     let encodeArray = (arr) => {
         let items = List.map(encode, arr)
-        List.join("", ["[ ", List.join(",", items),"] "])
+        List.join("", ["[", List.join(", ", items),"]"])
+    }
+
+    let encodeNumber = (num) => {
+        fail "not yet supported" 
     }
 
     match(js){
         JSObject(obj) => encodeObject(obj),
         JSArray(arr) => encodeArray(arr),
-        JSString(str) => List.join("", [" ", "\"", str, "\""]),
-        JSBoolean(true) => " true ",
-        JSBoolean(false) => " false ",
-        JSNull => " null "
+        JSString(str) => List.join("", ["\"", str, "\""]),
+        JSBoolean(true) => "true",
+        JSBoolean(false) => "false",
+        JSNull => "null",
+        JSNumber(num) => encodeNumber(num)
     }
 }
-
-print(encode(JSArray([JSString("test")])))
