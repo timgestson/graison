@@ -1,0 +1,20 @@
+import * from "./json"
+
+assert parse("
+    {\"key\": \"value\"}
+") == JSObject([("key", JSString("value"))])
+assert parse("
+    {\"key\": 12.5}
+") == JSObject([("key", JSNumber(12.5))])
+assert parse("
+    {\"key\": null}
+") == JSObject([("key", JSNull)])
+assert parse("
+    {\"key\": true}
+") == JSObject([("key", JSBoolean(true))])
+assert parse("
+    {\"key\": false}
+") == JSObject([("key", JSBoolean(false))])
+assert parse("
+    [ 25, 25.1, \"string\", null, false, {\"key\": \"value\"} ]
+") == JSArray([JSNumber(25), JSNumber(25.1), JSString("string"), JSNull, JSBoolean(false), JSObject([("key", JSString("value"))])])

@@ -7,11 +7,11 @@ import Char from "char"
 import Option from "option"
 import Number from "number"
 
-enum JSValue {
+export enum JSValue {
     JSNumber(Number),
     JSString(String),
     JSArray(List<JSValue>),
-    JSObject(Map.Map<String, JSValue>),
+    JSObject(List<(String, JSValue)>),
     JSBoolean(Bool),
     JSNull
 }
@@ -46,9 +46,11 @@ let tokenizeFirstChar = (char) => {
         'f' => False,
         '-' => Neg,
         '.' => Decimal,
-        ' ' => Space,
         ',' => Comma,
         ':' => Colon,
+        ' ' => Space,
+        '\t' => Space,
+        '\n' => Space,
         num when inRange(Char.code(num), Inclusive(48,57)) => Num,
         _ => Other
     }
@@ -158,7 +160,7 @@ let rec tokenize = (charlist) => {
                         fractal: [>]
                     })
                 ),
-                rest: charlist
+                rest: rest
             }
         }
     }
@@ -177,6 +179,7 @@ let rec tokenize = (charlist) => {
     let rec tokenizeArray = (state, charlist) => {
         let (hd, tl) = headTailTuple(charlist)
         match(tokenizeFirstChar(hd)){
+            Space => tokenizeArray(state, tl),
             OpenBracket => {
                 let result = tokenize(tl)
                 tokenizeArray(appendItem(state, result.json), result.rest)
@@ -189,7 +192,10 @@ let rec tokenize = (charlist) => {
                 json: JSArray(state),
                 rest: tl
             },
-            _ => fail "Illegal Array"
+            _ => {
+                print(tokenizeFirstChar(hd))
+                fail "Illegal Array"
+            }
         }
     }
 
@@ -216,17 +222,16 @@ let rec tokenize = (charlist) => {
     let rec tokenizeObject = (state, charlist) => {
         let (hd, tl) = headTailTuple(charlist)
         match(tokenizeFirstChar(hd)){
+            Space => tokenizeObject(state, tl),
             OpenBrace => {
                 let (key, rest) = tokenizeKey(None, tl)
                 let valueResult = tokenize(rest)
-                Map.set(key, valueResult.json, state)
-                tokenizeObject(state, valueResult.rest)
+                tokenizeObject(appendItem(state, (key, valueResult.json)), valueResult.rest)
             },
             Comma => {
                 let (key, rest) = tokenizeKey(None, tl)
                 let valueResult = tokenize(rest)
-                Map.set(key, valueResult.json, state)
-                tokenizeObject(state, valueResult.rest)
+                tokenizeObject(appendItem(state, (key, valueResult.json)), valueResult.rest)
             },
             CloseBrace => {
                 json: JSObject(state),
@@ -265,7 +270,7 @@ let rec tokenize = (charlist) => {
         Quote => tokenizeString([], tl),
         Num => tokenizeNumber([], charlist),
         Neg => tokenizeNumber([], charlist),
-        OpenBrace => tokenizeObject(Map.make(), charlist),
+        OpenBrace => tokenizeObject([], charlist),
         OpenBracket => tokenizeArray([], charlist),
         Null => tokenizeNull(charlist),
         True => tokenizeBoolean(charlist),
@@ -277,17 +282,35 @@ let rec tokenize = (charlist) => {
     }
 }
 
-let parse = str => {
+export let decode = str => {
     let tokenized = tokenize(Array.toList(String.explode(str)))
     tokenized.json
 }
 
+let rec encode = (js) => {
+    let encodeKvTuple = (kv) => {
+        match(kv){
+            (key, val) => List.join("", [" \"", key, "\": ", encode(val)])
+        }
+    }
+    let encodeObject = (obj) => {
+        let kvs = List.map(encodeKvTuple, obj)
+        List.join("", ["{ ", List.join(",", kvs),"} "])
+    }
 
-print(parse("{\"test\": 23.4232}"))
-print(parse("[\"test\", 23.4232, 44.1, {\"fdsfaf\": \"jhkhjk\"} ]"))
+    let encodeArray = (arr) => {
+        let items = List.map(encode, arr)
+        List.join("", ["[ ", List.join(",", items),"] "])
+    }
 
-print(toNum({
-    sign: Positive,
-    integral: [>'4','5'],
-    fractal: [>'4','6'],
-}))
+    match(js){
+        JSObject(obj) => encodeObject(obj),
+        JSArray(arr) => encodeArray(arr),
+        JSString(str) => List.join("", [" ", "\"", str, "\""]),
+        JSBoolean(true) => " true ",
+        JSBoolean(false) => " false ",
+        JSNull => " null "
+    }
+}
+
+print(encode(JSArray([JSString("test")])))
