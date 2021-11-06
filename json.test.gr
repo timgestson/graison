@@ -1,0 +1,25 @@
+import * from "./json"
+
+// decode
+assert decode("
+    {\"key\": \"value\"}
+") == JSObject([("key", JSString("value"))])
+assert decode("
+    {\"key\": 12.5}
+") == JSObject([("key", JSNumber(12.5))])
+assert decode("
+    {\"key\": null}
+") == JSObject([("key", JSNull)])
+assert decode("
+    {\"key\": true}
+") == JSObject([("key", JSBoolean(true))])
+assert decode("
+    {\"key\": false}
+") == JSObject([("key", JSBoolean(false))])
+assert decode("
+    [ 25, 25.1, \"string\", null, false, {\"key\": \"value\"} ]
+") == JSArray([JSNumber(25), JSNumber(25.1), JSString("string"), JSNull, JSBoolean(false), JSObject([("key", JSString("value"))])])
+
+// encode
+assert encode(JSArray([JSString("string"), JSNull, JSBoolean(false), JSObject([("key", JSString("value"))])])) == "[\"string\", null, false, {\"key\":\"value\"}]"
+assert encode(JSObject([("key", JSString("value"))])) == "{\"key\":\"value\"}"

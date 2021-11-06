@@ -5,12 +5,13 @@ import Array from "array"
 import String from "string"
 import Char from "char"
 import Option from "option"
+import Number from "number"
 
-enum JSValue {
-    JSNumber(String),
+export enum JSValue {
+    JSNumber(Number),
     JSString(String),
     JSArray(List<JSValue>),
-    JSObject(Map.Map<String, JSValue>),
+    JSObject(List<(String, JSValue)>),
     JSBoolean(Bool),
     JSNull
 }
@@ -45,9 +46,11 @@ let tokenizeFirstChar = (char) => {
         'f' => False,
         '-' => Neg,
         '.' => Decimal,
-        ' ' => Space,
         ',' => Comma,
         ':' => Colon,
+        ' ' => Space,
+        '\t' => Space,
+        '\n' => Space,
         num when inRange(Char.code(num), Inclusive(48,57)) => Num,
         _ => Other
     }
@@ -68,18 +71,96 @@ record ParseItemState {
     rest: List<Char>
 }
 
+enum Sign {
+    Positive,
+    Negative
+}
+
+record ParsedNumber {
+    sign: Sign,
+    integral: Array<Char>,
+    fractal: Array<Char>
+}
+
+let parseSign = (charlist) => {
+    let (hd, tl) = headTailTuple(charlist)
+    match(tokenizeFirstChar(hd)){
+        Neg => (Negative, tl),
+        Num => (Positive, charlist),
+        _ => fail "Illegal Number"
+    }
+}
+
+let rec parseNumericPart = (state, charlist) => {
+    let (hd, tl) = headTailTuple(charlist)
+    match(tokenizeFirstChar(hd)){
+        Num => parseNumericPart(appendItem(state, hd), tl),
+        _ => (state, charlist)
+    }
+}
+
+let pow = (num, power) => {
+    if(power == 0){
+        1
+    }else{
+        let mut result = num
+        for(let mut i = 1; i < power; i+=1){
+            result *= num
+        }
+        result
+    }
+}
+
+let toNum = (parsedNum) => {
+    let mut number = 0
+    let intLen = Array.length(parsedNum.integral)
+    let mut radix = intLen - 1
+    for(let mut i = 0; i < intLen; i += 1){
+        let digit = Char.code(parsedNum.integral[i]) - 48
+        number += digit * pow(10, radix)
+        radix -= 1
+    }
+    let fracLen = Array.length(parsedNum.fractal)
+    radix = 1
+    for(let mut i = 0; i < fracLen; i += 1){
+        let digit = Char.code(parsedNum.fractal[i]) - 48
+        number += digit / pow(10, radix)
+        radix += 1
+    }
+    match(parsedNum.sign){
+        Positive => number,
+        Negative => Number.neg(number)
+    }
+    number
+}
+
 let rec tokenize = (charlist) => {
     let rec tokenizeNumber = (state, charlist) => {
-        let (hd, tl) = headTailTuple(charlist)
+        let (sign, number) = parseSign(charlist)
+        let (integral, rest) = parseNumericPart([], number)
+        let (hd, tl) = headTailTuple(rest)
         match(tokenizeFirstChar(hd)){
-            Neg => tokenizeNumber(['-'], tl),
-            Decimal when !List.contains('.', state) => tokenizeNumber(appendItem(state, hd), tl),
-            Num => tokenizeNumber(appendItem(state, hd), tl),
-            Decimal => fail "Illegal Number",
-            Neg => fail "Illegal Number",
+            Decimal => {
+                let (fractal, rest) = parseNumericPart([], tl)
+                let result = toNum({
+                    sign: sign,
+                    integral: Array.fromList(integral),
+                    fractal: Array.fromList(fractal)
+                })
+                {
+                    json: JSNumber(result),
+                    rest: rest
+                }
+            },
             _ => {
-                json: JSNumber(String.implode(Array.fromList(state))),
-                rest: charlist
+                json: JSNumber(
+                    toNum({
+                        sign: sign,
+                        integral: Array.fromList(integral),
+                        fractal: [>]
+                    })
+                ),
+                rest: rest
             }
         }
     }
@@ -98,6 +179,7 @@ let rec tokenize = (charlist) => {
     let rec tokenizeArray = (state, charlist) => {
         let (hd, tl) = headTailTuple(charlist)
         match(tokenizeFirstChar(hd)){
+            Space => tokenizeArray(state, tl),
             OpenBracket => {
                 let result = tokenize(tl)
                 tokenizeArray(appendItem(state, result.json), result.rest)
@@ -110,7 +192,10 @@ let rec tokenize = (charlist) => {
                 json: JSArray(state),
                 rest: tl
             },
-            _ => fail "Illegal Array"
+            _ => {
+                print(tokenizeFirstChar(hd))
+                fail "Illegal Array"
+            }
         }
     }
 
@@ -137,17 +222,16 @@ let rec tokenize = (charlist) => {
     let rec tokenizeObject = (state, charlist) => {
         let (hd, tl) = headTailTuple(charlist)
         match(tokenizeFirstChar(hd)){
+            Space => tokenizeObject(state, tl),
             OpenBrace => {
                 let (key, rest) = tokenizeKey(None, tl)
                 let valueResult = tokenize(rest)
-                Map.set(key, valueResult.json, state)
-                tokenizeObject(state, valueResult.rest)
+                tokenizeObject(appendItem(state, (key, valueResult.json)), valueResult.rest)
             },
             Comma => {
                 let (key, rest) = tokenizeKey(None, tl)
                 let valueResult = tokenize(rest)
-                Map.set(key, valueResult.json, state)
-                tokenizeObject(state, valueResult.rest)
+                tokenizeObject(appendItem(state, (key, valueResult.json)), valueResult.rest)
             },
             CloseBrace => {
                 json: JSObject(state),
@@ -184,9 +268,9 @@ let rec tokenize = (charlist) => {
     let (hd, tl) = headTailTuple(charlist)
     match(tokenizeFirstChar(hd)){
         Quote => tokenizeString([], tl),
-        Num => tokenizeNumber([hd], tl),
-        Neg => tokenizeNumber([hd], tl),
-        OpenBrace => tokenizeObject(Map.make(), charlist),
+        Num => tokenizeNumber([], charlist),
+        Neg => tokenizeNumber([], charlist),
+        OpenBrace => tokenizeObject([], charlist),
         OpenBracket => tokenizeArray([], charlist),
         Null => tokenizeNull(charlist),
         True => tokenizeBoolean(charlist),
@@ -198,7 +282,38 @@ let rec tokenize = (charlist) => {
     }
 }
 
-let parse = str => {
+export let decode = str => {
     let tokenized = tokenize(Array.toList(String.explode(str)))
     tokenized.json
+}
+
+export let rec encode = (js) => {
+    let encodeKvTuple = (kv) => {
+        match(kv){
+            (key, val) => List.join("", ["\"", key, "\":", encode(val)])
+        }
+    }
+    let encodeObject = (obj) => {
+        let kvs = List.map(encodeKvTuple, obj)
+        List.join("", ["{", List.join(",", kvs),"}"])
+    }
+
+    let encodeArray = (arr) => {
+        let items = List.map(encode, arr)
+        List.join("", ["[", List.join(", ", items),"]"])
+    }
+
+    let encodeNumber = (num) => {
+        fail "not yet supported" 
+    }
+
+    match(js){
+        JSObject(obj) => encodeObject(obj),
+        JSArray(arr) => encodeArray(arr),
+        JSString(str) => List.join("", ["\"", str, "\""]),
+        JSBoolean(true) => "true",
+        JSBoolean(false) => "false",
+        JSNull => "null",
+        JSNumber(num) => encodeNumber(num)
+    }
 }
