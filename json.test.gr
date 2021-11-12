@@ -38,11 +38,12 @@ assert encode(
   JSArray(
     [
       JSString("string"),
+      JSNumber(66.5),
       JSNull,
       JSBoolean(false),
       JSObject([("key", JSString("value"))]),
     ],
   ),
 ) ==
-"[\"string\", null, false, {\"key\":\"value\"}]"
+"[\"string\", 66.5, null, false, {\"key\":\"value\"}]"
 assert encode(JSObject([("key", JSString("value"))])) == "{\"key\":\"value\"}"

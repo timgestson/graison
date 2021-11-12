@@ -6,6 +6,8 @@ import String from "string"
 import Char from "char"
 import Option from "option"
 import Number from "number"
+import NumberUtils from "runtime/numberUtils"
+import Numbers from "runtime/numbers"
 
 export enum JSValue {
   JSNumber(Number),
@@ -273,6 +275,7 @@ export let decode = str => {
   tokenized.json
 }
 
+
 export let rec encode = js => {
   let encodeKvTuple = kv => {
     match (kv) {
@@ -290,7 +293,7 @@ export let rec encode = js => {
   }
 
   let encodeNumber = num => {
-    fail "not yet supported"
+    NumberUtils.dtoa(Numbers.coerceNumberToWasmF64(num))
   }
 
   match (js) {
